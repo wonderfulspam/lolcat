@@ -1,121 +1,62 @@
 extern crate atty;
-extern crate clap;
-extern crate rand;
+extern crate rand_distr;
+extern crate structopt;
 
-use clap::{App, Arg};
-use rand::Rng;
-use std::fs::File;
 use std::io;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::thread::sleep;
-use std::time::Duration;
+use std::{fs::File, path::PathBuf};
+use structopt::StructOpt;
 
 mod cat;
 
+#[derive(StructOpt, Debug)]
+#[structopt(name = "lolcat")]
+/// The good ol' lolcat, now with fearless concurrency.
+pub struct Control {
+    #[structopt(long, default_value = "0.0")]
+    /// A seed for your lolcat
+    pub seed: f64,
+    #[structopt(short, long, default_value = "3.0")]
+    /// How much should we spread dem colors?
+    pub spread: f64,
+    #[structopt(short, long, default_value = "0.1")]
+    /// Speed of the colour change
+    pub frequency: f64,
+    #[structopt(short = "B", long)]
+    /// lolcat the background instead
+    pub background_mode: bool,
+    #[structopt(short = "D", long)]
+    /// Simulate slow connection
+    pub dialup_mode: bool,
+    #[structopt(short, long, default_value = "3.0")]
+    /// Speed of the dialup mode
+    pub baud: f64,
+    /// Input file. Reads from STDIN if missing
+    pub filename: Option<PathBuf>,
+}
+
 fn main() {
-    let mut filename: String = "".to_string();
-    let mut c = parse_cli_args(&mut filename);
+    let mut c = Control::from_args();
     let stdin = io::stdin(); // For lifetime reasons
 
-    if filename == "" {
+    let filename = c.filename.clone();
+    if let Some(filename) = filename {
+        if lolcat_file(&filename, &mut c).is_err() {
+            println!("Error opening file {:?}.", filename)
+        }
+    } else {
         for line in stdin.lock().lines() {
             cat::print_with_lolcat(line.unwrap(), &mut c);
-            if c.dialup_mode {
-                let stall = Duration::from_millis(rand::thread_rng().gen_range(30, 200));
-                sleep(stall);
-            }
         }
-    } else if lolcat_file(&filename, &mut c).is_err() {
-        println!("Error opening file {}.", filename)
     }
 }
 
-fn lolcat_file(filename: &str, c: &mut cat::Control) -> Result<(), io::Error> {
+fn lolcat_file(filename: &PathBuf, c: &mut Control) -> Result<(), io::Error> {
     let f = File::open(filename)?;
     let file = BufReader::new(&f);
     for line in file.lines() {
         cat::print_with_lolcat(line.unwrap(), c);
-
-        if c.dialup_mode {
-            let stall = Duration::from_millis(rand::thread_rng().gen_range(30, 700));
-            sleep(stall);
-        }
     }
     Ok(())
-}
-
-fn parse_cli_args(filename: &mut String) -> cat::Control {
-    let matches = App::new("lolcat")
-        .version("1.0.1")
-        .author("Umang Raghuvanshi <u@umangis.me>")
-        .about("The good ol' lolcat, now with fearless concurrency.")
-        .arg(
-            Arg::with_name("seed")
-                .short("s")
-                .long("seed")
-                .help("A seed for your lolcat. Setting this to 0 randomizes the seed.")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("spread")
-                .short("S")
-                .long("spread")
-                .help("How much should we spread dem colors? Defaults to 3.0")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("frequency")
-                .short("f")
-                .long("frequency")
-                .help("Frequency - used in our math. Defaults to 0.1")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("background")
-                .short("B")
-                .long("bg")
-                .help("Background mode - If selected the background will be rainbow. Default false")
-                .takes_value(false),
-        )
-        .arg(
-            Arg::with_name("dialup")
-                .short("D")
-                .long("dialup")
-                .help("Dialup mode - Simulate dialup connection")
-                .takes_value(false),
-        )
-        .arg(
-            Arg::with_name("filename")
-                .short("i")
-                .long("input file name")
-                .help("Lolcat this file. Reads from STDIN if missing")
-                .takes_value(true)
-                .index(1),
-        )
-        .get_matches();
-
-    let seed = matches.value_of("seed").unwrap_or("0.0");
-    let spread = matches.value_of("spread").unwrap_or("3.0");
-    let frequency = matches.value_of("frequency").unwrap_or("0.1");
-    let background = matches.is_present("background");
-    let dialup = matches.is_present("dialup");
-
-    *filename = matches.value_of("filename").unwrap_or("").to_string();
-
-    let mut seed: f64 = seed.parse().unwrap();
-    let spread: f64 = spread.parse().unwrap();
-    let frequency: f64 = frequency.parse().unwrap();
-
-    if seed == 0.0 {
-        seed = rand::random::<f64>() * 10e9;
-    }
-
-    cat::Control {
-        seed,
-        spread,
-        frequency,
-        background_mode: background,
-        dialup_mode: dialup,
-    }
 }

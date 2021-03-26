@@ -1,22 +1,19 @@
-extern crate rand;
+extern crate rand_distr;
 
 use atty::Stream;
-use std;
+use rand_distr::{Distribution, LogNormal};
+use std::thread::sleep;
+use std::time::Duration;
+use std::{self, io::Write};
 
-// A struct to contain info we need to print with every character
-pub struct Control {
-    pub seed: f64,
-    pub spread: f64,
-    pub frequency: f64,
-    pub background_mode: bool,
-    pub dialup_mode: bool,
-}
+use super::Control;
 
 // A wrapper around colored_print
 pub fn print_with_lolcat(s: String, c: &mut Control) {
     let original_seed = c.seed;
     let mut skipping = false;
     let mut whitespace_after_newline = true;
+    let distribution = LogNormal::new(c.baud, 1.0).unwrap();
 
     if !atty::is(Stream::Stdout) {
         println!("{}", s);
@@ -56,6 +53,13 @@ pub fn print_with_lolcat(s: String, c: &mut Control) {
             let fg = get_color_tuple(c);
             colored_print(fg, character);
         }
+
+        if c.dialup_mode && character.is_alphanumeric() {
+            //let stall = Duration::from_millis(rand::thread_rng().gen_range(2, 50));
+            let stall = Duration::from_millis(distribution.sample(&mut rand::thread_rng()) as u64);
+            sleep(stall);
+            std::io::stdout().flush().unwrap();
+        }
     }
 
     println!(); // A newline, because lines() gave us a single line without it
@@ -75,15 +79,15 @@ fn calc_fg_color(bg: (u8, u8, u8)) -> (u8, u8, u8) {
 
 fn linear_to_srgb(intensity: f64) -> f64 {
     if intensity <= 0.003_130_8 {
-        (12.92 * intensity)
+        12.92 * intensity
     } else {
-        (1.055 * intensity.powf(1.0 / 2.4) - 0.055)
+        1.055 * intensity.powf(1.0 / 2.4) - 0.055
     }
 }
 
 fn srgb_to_linear(intensity: f64) -> f64 {
     if intensity < 0.04045 {
-        (intensity / 12.92)
+        intensity / 12.92
     } else {
         ((intensity + 0.055) / 1.055).powf(2.4)
     }
