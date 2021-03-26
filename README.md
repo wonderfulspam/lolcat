@@ -8,8 +8,16 @@ Run lolcat on everything you like and you'll never have to wonder about the dull
 
 ## Installation
 
-Rustacean? Just run `cargo install lolcat`.
+Clone this repo, then run:
+
+`cargo install --path .`
+
+Run `lolcat --help` for a complete list of configuration options.
 
 ## License
 
 Seriously? It's the [MIT license](LICENSE).
+
+## Credits
+
+Shamelessly forked from [ur0/lolcat](https://github.com/ur0/lolcat).
